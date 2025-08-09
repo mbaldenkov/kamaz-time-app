@@ -1,0 +1,16 @@
+{
+  "name": "Учет трудозатрат — КАМАЗ сервис",
+  "short_name": "Учет трудозатрат",
+  "description": "Приложение для учета трудозатрат в сервисе КАМАЗ.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🛠️</text></svg>",
+      "sizes": "256x256",
+      "type": "image/svg+xml"
+    }
+  ]
+}

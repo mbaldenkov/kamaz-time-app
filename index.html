@@ -1260,6 +1260,14 @@ main{display:grid;grid-template-columns:minmax(300px, 45%) 1fr;gap:14px;padding:
       // Загружаем сохранённое глобальное состояние (если есть)
       load();
     })();
+    // Регистрация service worker для офлайн-работы
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./sw.js').catch(function(err) {
+          console.warn('ServiceWorker registration failed:', err);
+        });
+      });
+    }
   </script>
 </body>
 </html>
