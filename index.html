@@ -69,6 +69,18 @@ main{display:grid;grid-template-columns:minmax(300px, 45%) 1fr;gap:14px;padding:
         overflow: visible !important;
         max-height: none;
       }
+
+      /* На мобильных переставляем порядок секций: сначала наряд, потом каталог */
+      main {
+        display: flex;
+        flex-direction: column;
+      }
+      main > section.card.sticky {
+        order: 2;
+      }
+      main > section.card:not(.sticky) {
+        order: 1;
+      }
     }
 
     /* Позволяем пользователю изменять ширину панели каталога на ПК */
@@ -81,16 +93,15 @@ main{display:grid;grid-template-columns:minmax(300px, 45%) 1fr;gap:14px;padding:
       }
     }
 
-    /* Каталог: убираем внутреннюю прокрутку на десктопе, но ограничиваем высоту на мобильных.
-       На маленьких экранах список работ не должен вытеснять таблицу наряда, поэтому
-       задаём max-height и включаем прокрутку. На больших экранах высота не ограничена. */
+    /* Каталог: на десктопе внутренней прокрутки нет (каталог тянется по высоте).
+       На мобильных ограничиваем высоту каталога, чтобы справа была видна таблица наряда. */
     .catalog-wrapper {
       overflow-y: visible;
       max-height: none;
     }
     @media (max-width: 960px) {
       .catalog-wrapper {
-        max-height: 50vh;
+        max-height: 40vh;
         overflow-y: auto;
       }
     }
