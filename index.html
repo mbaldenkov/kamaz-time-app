@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Учет трудозатрат — КАМАЗ сервис</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.json" />
+  <!-- Иконка вкладки -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛠️</text></svg>">
+  <!-- Минимальные стили: адаптивно и аккуратно -->
+  <style>
+    :root{
+      --bg:#0b0f14; --card:#121821; --muted:#8aa0b2; --text:#e7eef6; --accent:#4cc2ff; --accent2:#94f38e; --danger:#ff6b6b;
+      --border:#223040;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";}
+    header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    header h1{font-size:18px;margin:0 12px 0 0}
+    header .pill{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:6px 10px;display:flex;gap:8px;align-items:center}
+    header input[type="text"], header select{
+      background:transparent;border:0;color:var(--text);outline:none;width:150px
+    }
+main{display:grid;grid-template-columns:minmax(300px, 45%) 1fr;gap:14px;padding:14px}
+    @media (max-width:960px){ main{grid-template-columns:1fr} }
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .row > * { flex: 1 1 auto }
+    .muted{color:var(--muted)}
+    input, select, button, textarea{
+      background:#0e141c;border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px;
+    }
+    input::placeholder{color:#6d8497}
+    button{cursor:pointer}
+    .btn{padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#0f1722}
+    .btn.primary{background:linear-gradient(180deg,#0f2230,#11283a);border-color:#1f3448}
+    .btn.accent{background:linear-gradient(180deg,#0f2a1a,#0f2f1b);border-color:#1d5136}
+    .btn.danger{background:linear-gradient(180deg,#2a1010,#2f1010);border-color:#4b1e1e}
+    table{width:100%;border-collapse:collapse}
+    th, td{border-bottom:1px dashed var(--border);padding:8px;text-align:left;vertical-align:top}
+    th{color:#9cb5c9;font-weight:600}
+    tbody tr:hover{background:#0e141c}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+    .badge{display:inline-block;padding:4px 8px;border:1px solid var(--border);border-radius:999px;color:var(--muted);font-size:12px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .sticky{position:sticky;top:8px}
+    .total{font-size:18px}
+    .small{font-size:12px}
+    .right{text-align:right}
+    .nowrap{white-space:nowrap}
+    .link{color:var(--accent);cursor:pointer}
+    .spacer{flex:1}
+
+    /* Минимальная ширина для выпадающего списка исполнителей */
+    .worker-select{min-width:120px; flex:1 1 auto;}
+
+    /* Позволяем пользователю изменять ширину панели каталога на ПК */
+    @media (min-width: 961px) {
+      main > section.card.sticky {
+        resize: horizontal;
+        overflow: auto;
+        min-width: 260px;
+        max-width: 600px;
+      }
+    }
+
+    /* Каталог: убираем внутреннюю прокрутку. Контейнер растягивается по содержимому, страница прокручивается целиком */
+    .catalog-wrapper {
+      overflow-y: visible;
+      max-height: none;
+    }
+
+    /* Делаем перенос строк в колонке "Работа" для длинных описаний */
+    #catalogTable td:nth-child(3) {
+      white-space: normal;
+      word-break: break-word;
+      /* Включаем автоматическую расстановку переносов для русского текста */
+      hyphens: auto;
+      overflow-wrap: anywhere;
+    }
+
+    /* Адаптивность на узких экранах: скрываем колонки "Модель" и "Код" в каталоге */
+    @media (max-width: 600px) {
+      #catalogTable th:nth-child(1),
+      #catalogTable th:nth-child(2),
+      #catalogTable td:nth-child(1),
+      #catalogTable td:nth-child(2) {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Учет трудозатрат</h1>
+    <!-- Профиль убран: все данные сохраняются глобально -->
+    <div class="pill">
+      Каталог работ:
+      <input id="catalogFile" type="file" accept=".csv,.txt,.xlsx,.xls" />
+      <button class="btn" id="btnSample">Пример CSV</button>
+    </div>
+    <!-- Загрузка списка исполнителей -->
+    <div class="pill">
+      Исполнители:
+      <input id="workersFile" type="file" accept=".csv,.txt,.xlsx,.xls" />
+      <button class="btn" id="btnSampleWorkers">Пример списка</button>
+    </div>
+    <!-- Загрузка шаблона Excel для экспорта -->
+    <div class="pill">
+      Шаблон:
+      <input id="templateFile" type="file" accept=".xlsx,.xls" />
+    </div>
+    <div class="pill">
+      <!-- Кнопка CSV убрана: используем только экспорт в Excel -->
+      <button class="btn" id="btnExportExcelLog">Экспорт наряда (Excel)</button>
+      <button class="btn" id="btnExportState">Сохранить всё</button>
+      <input id="stateFile" type="file" accept=".json" style="display:none"/>
+      <button class="btn" id="btnImportState">Загрузить всё</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="pill">
+      <span class="badge">Данные хранятся локально</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Левая колонка: Каталог работ -->
+    <section class="card sticky">
+      <h3 style="margin:6px 0 10px">Каталог работ</h3>
+      <div class="row">
+        <input id="search" type="text" placeholder="Поиск: модель, код, наименование..." />
+        <select id="modelFilter">
+          <!-- Опции моделей будут загружены динамически -->
+        </select>
+      </div>
+      <div class="toolbar">
+        <div class="small muted">Поддерживаем CSV и Excel (.xlsx) с колонками: <b>Норма времени, Модель шасси, Группа, Подгруппа, Операция, Трудоемкость</b></div>
+      </div>
+      <!-- Оболочка для таблицы каталога. Высоту задаём автоматически, чтобы не было внутренней прокрутки. -->
+      <div class="catalog-wrapper" style="border:1px solid var(--border);border-radius:10px">
+        <table id="catalogTable">
+          <thead>
+            <tr>
+              <th>Модель</th>
+              <th>Код</th>
+              <th>Работа</th>
+              <th class="right nowrap">Норма, ч</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="catalogBody">
+            <!-- Заполняется из каталога -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Правая колонка: Наряд / выполненные работы -->
+    <section class="card">
+      <div class="row">
+        <h3 style="margin:6px 0 10px">Наряд / выполненные работы</h3>
+        <div class="spacer"></div>
+        <button class="btn accent" id="btnSaveLog">Сохранить наряд</button>
+        <button class="btn danger" id="btnClear">Очистить наряд</button>
+      </div>
+
+      <div class="grid2">
+        <input id="orderInfo" placeholder="Примечание (VIN, гос.номер, заказ-наряд и т.п.)">
+        <input id="dateField" type="date">
+      </div>
+
+      <div class="toolbar">
+        <span class="badge">Макс. 3 исполнителя на работу</span>
+        <span class="badge">Деление времени поровну, округление до 0.1</span>
+      </div>
+
+      <div style="overflow:auto;border:1px solid var(--border);border-radius:10px">
+        <table id="logTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Модель</th>
+              <th>Код</th>
+              <th>Работа</th>
+              <th class="right nowrap">Норма, ч</th>
+              <th>Исполнители (до 3)</th>
+              <th class="right nowrap">На человека, ч</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="logBody">
+            <!-- Заполняется при добавлении -->
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="4" class="right total">Итого по наряду:</th>
+              <th id="totalHours" class="right total">0.0</th>
+              <th></th>
+              <th id="perPersonHint" class="right small muted"></th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <h4 style="margin-top:16px">Итого по исполнителям</h4>
+      <div id="totalsByWorker" class="card" style="background:#0e141c;border-style:dashed"></div>
+
+      <h4 style="margin-top:16px">Сохранённые наряды</h4>
+      <div id="historyList" class="card" style="background:#0e141c;border-style:dashed"></div>
+    </section>
+  </main>
+
+  <!-- Подключаем библиотеки: PapaParse для CSV и SheetJS (xlsx) для Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <script>
+    // Ключ localStorage для глобального состояния (без профилей)
+    const LS_KEY = 'kamaz_time_app_v3';
+
+    // Ключи глобальных данных (каталог и список сотрудников), общие для всех профилей
+    const GLOBAL_CATALOG_KEY = 'kamaz_global_catalog_v1';
+    const GLOBAL_WORKERS_KEY = 'kamaz_global_workers_v1';
+    const GLOBAL_TEMPLATE_KEY = 'kamaz_template_data_v1';
+
+    // Текущее состояние приложения
+    let state = {
+      // Глобальное состояние (без профилей)
+      catalog: [], // [{model, code, title, norm_hours}]
+      filter: '',
+      selectedModel: '', // выбранная модель для фильтра
+      workersList: [], // список исполнителей, загруженный из файла
+      orderInfo: '',
+      date: new Date().toISOString().slice(0,10),
+      log: [], // [{id, model, code, title, norm_hours, workers:[name1,name2,name3]}]
+      history: [] // массив сохранённых нарядов: {id, date, orderInfo, log}
+      ,
+      templateData: null // ArrayBuffer для Excel-шаблона (если загружен)
+    };
+
+    // Утилиты
+    const toOneDecimal = (x) => Math.round((Number(x)||0)*10)/10;
+    /**
+     * Расчёт нормы на одного исполнителя с округлением до десятых.
+     * Если итоговое значение меньше 0.1 и больше 0, возвращает 0.1 (минимальное значение),
+     * чтобы избежать нулей в отчёте. Ноль остаётся нулём.
+     * @param {number} total - общая норма работы
+     * @param {number} count - количество исполнителей (>=1)
+     */
+    const calcPerPerson = (total, count) => {
+      const base = (Number(total) || 0) / (count || 1);
+      if(base <= 0) return 0;
+      const rounded = toOneDecimal(base);
+      return rounded < 0.1 ? 0.1 : rounded;
+    };
+    const sanitize = (s) => (s??'').toString().trim();
+    const byId = (id) => document.getElementById(id);
+    const uuid = () => Math.random().toString(36).slice(2,9);
+
+    /**
+     * Нормализует значение модели: убирает десятичную часть у числовых кодов.
+     * Примеры: "43118.0" → "43118", 43118 → "43118".
+     */
+    function normalizeModel(value){
+      if(value === undefined || value === null) return '';
+      // если это число – берём целую часть
+      if(typeof value === 'number'){
+        return parseInt(value, 10).toString();
+      }
+      let s = String(value).trim();
+      // если строка содержит только цифры и точку, отбрасываем дробную часть
+      const m = s.match(/^(-?\d+)(?:\.0+)?$/);
+      if(m) return m[1];
+      return s;
+    }
+
+    // Сохранение/загрузка состояния
+    function save(){
+      // Сохраняем все данные (глобальное состояние) в LocalStorage
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+    }
+    function load(){
+      const raw = localStorage.getItem(LS_KEY);
+      if(raw){
+        try{
+          state = JSON.parse(raw);
+          // Назначаем уникальный id для каждой работы каталога, если отсутствует (поддержка старых сохранений)
+          if(Array.isArray(state.catalog)){
+            let modified = false;
+            state.catalog.forEach(r => {
+              if(!r.id){ r.id = uuid(); modified = true; }
+            });
+            if(modified) save();
+          }
+        }catch(e){
+          console.warn('Не удалось прочитать сохраненные данные', e);
+        }
+      }else{
+        // если сохранения нет, инициализируем новое состояние
+        state = {
+          catalog: [],
+          filter: '',
+          selectedModel: '',
+          workersList: [],
+          orderInfo: '',
+          date: new Date().toISOString().slice(0,10),
+          log: [],
+          history: []
+        };
+        // Загружаем глобальные данные каталога и сотрудников
+        loadGlobalData();
+      }
+      renderAll();
+    }
+
+    /**
+     * Загружает глобальные (общие) данные каталога работ и списка сотрудников
+     * из LocalStorage и сохраняет их в state.catalog и state.workersList.
+     */
+    function loadGlobalData(){
+      // Каталог
+      const catRaw = localStorage.getItem(GLOBAL_CATALOG_KEY);
+      if(catRaw){
+        try{
+          const cat = JSON.parse(catRaw);
+          if(Array.isArray(cat)){
+            // При необходимости назначаем id для каждой записи
+            cat.forEach(item => {
+              if(!item.id) item.id = uuid();
+            });
+            state.catalog = cat;
+          }
+        }catch(e){ console.warn('Не удалось прочитать глобальный каталог', e); }
+      }
+      // Список сотрудников
+      const wRaw = localStorage.getItem(GLOBAL_WORKERS_KEY);
+      if(wRaw){
+        try{
+          const workers = JSON.parse(wRaw);
+          if(Array.isArray(workers)){
+            state.workersList = workers;
+          }
+        }catch(e){ console.warn('Не удалось прочитать глобальный список работников', e); }
+      }
+
+      // Шаблон Excel
+      const tRaw = localStorage.getItem(GLOBAL_TEMPLATE_KEY);
+      if(tRaw){
+        try{
+          // tRaw хранится в base64 формате, декодируем
+          const binaryString = atob(tRaw);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for(let i=0; i<len; i++) bytes[i] = binaryString.charCodeAt(i);
+          state.templateData = bytes.buffer;
+        }catch(e){ console.warn('Не удалось прочитать глобальный шаблон', e); }
+      }
+    }
+
+    // Рендер каталога работ
+    function renderCatalog(){
+      const tbody = byId('catalogBody');
+      tbody.innerHTML = '';
+      const q = state.filter.toLowerCase();
+      let rows = state.catalog;
+      // применяем фильтр по модели, если выбран
+      if(state.selectedModel){
+        rows = rows.filter(r => String(r.model) === String(state.selectedModel));
+      }
+      // применяем текстовый фильтр
+      rows = rows.filter(r => {
+        const hay = `${r.model} ${r.code} ${r.title}`.toLowerCase();
+        return hay.includes(q);
+      }).slice(0,500); // защита от огромных файлов
+      // Если нет строк, показываем уведомление
+      if(rows.length === 0){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="5" class="muted" style="text-align:center;padding:20px">Нет работ</td>`;
+        tbody.appendChild(tr);
+        return;
+      }
+      for(const r of rows){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(r.model)}</td>
+          <td>${escapeHtml(r.code)}</td>
+          <td>${escapeHtml(r.title)}</td>
+          <td class="right">${Number(r.norm_hours).toFixed(1)}</td>
+          <td><button class="btn primary" data-add="${escapeAttr(r.id)}">Добавить</button></td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    // Рендер списка работ (наряд)
+    function renderLog(){
+      const tbody = byId('logBody');
+      tbody.innerHTML = '';
+      state.log.forEach((item, idx) => {
+        const nExec = item.workers.filter(Boolean).length || 1;
+        const perPerson = toOneDecimal((item.norm_hours || 0) / nExec);
+
+        const tr = document.createElement('tr');
+        // Формируем список полей исполнителей: если загружен список workersList, используем <select>, иначе <input>
+        let workersHtml = '';
+        if(state.workersList && state.workersList.length){
+          // создаем select для каждого слота
+          workersHtml = [0,1,2].map(i => {
+            const selectedValue = item.workers[i] || '';
+            let opts = '<option value=""></option>';
+            for(const w of state.workersList){
+              const sel = (String(w) === String(selectedValue)) ? ' selected' : '';
+              opts += `<option value="${escapeAttr(w)}"${sel}>${escapeHtml(w)}</option>`;
+            }
+            return `<select class="worker-select" data-id="${item.id}" data-slot="${i}">${opts}</select>`;
+          }).join('');
+        } else {
+          // обычные текстовые поля
+          workersHtml = [0,1,2].map(i => `
+            <input class="worker" data-id="${item.id}" data-slot="${i}" placeholder="Исполнитель ${i+1}" value="${escapeAttr(item.workers[i]||'')}">
+          `).join('');
+        }
+        tr.innerHTML = `
+          <td>${idx+1}</td>
+          <td>${escapeHtml(item.model)}</td>
+          <td>${escapeHtml(item.code)}</td>
+          <td>${escapeHtml(item.title)}</td>
+          <td class="right">${Number(item.norm_hours).toFixed(1)}</td>
+          <td>
+            <div class="row" style="gap:6px">
+              ${workersHtml}
+            </div>
+          </td>
+          <td class="right">${perPerson.toFixed(1)}</td>
+          <td><span class="link" data-del="${item.id}">Удалить</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Итого по наряду
+      const total = toOneDecimal(state.log.reduce((s,x)=>s + (Number(x.norm_hours)||0),0));
+      byId('totalHours').textContent = total.toFixed(1);
+      byId('perPersonHint').textContent = state.log.length ? 'Доли считаются по каждой работе отдельно' : '';
+
+      renderTotalsByWorker();
+    }
+
+    // Рендер итогов по исполнителям
+    function renderTotalsByWorker(){
+      const map = new Map(); // name -> hours
+      for(const it of state.log){
+        const workers = it.workers.filter(w => sanitize(w));
+        const n = workers.length || 1;
+        const per = toOneDecimal((Number(it.norm_hours)||0)/n);
+        for(const w of workers.length ? workers : ['(без имени)']){
+          map.set(w, toOneDecimal((map.get(w)||0) + per));
+        }
+      }
+      const entries = Array.from(map.entries()).sort((a,b)=> a[0].localeCompare(b[0], 'ru'));
+      const box = byId('totalsByWorker');
+      if(entries.length===0){ box.innerHTML = '<span class="muted">Пока нет исполнителей</span>'; return; }
+      let html = '<table><thead><tr><th>Исполнитель</th><th class="right">Сумма, ч</th></tr></thead><tbody>';
+      for(const [name, hrs] of entries){
+        html += `<tr><td>${escapeHtml(name)}</td><td class="right">${hrs.toFixed(1)}</td></tr>`;
+      }
+      html += '</tbody></table>';
+      box.innerHTML = html;
+    }
+
+    // Общий рендер
+    function renderAll(){
+      // Профиль не используется, поле отсутствует
+      byId('orderInfo').value = state.orderInfo || '';
+      byId('dateField').value = state.date || new Date().toISOString().slice(0,10);
+      renderModelFilter();
+      renderCatalog();
+      renderLog();
+      renderHistory();
+    }
+
+    // Рендер истории сохранённых нарядов
+    function renderHistory(){
+      const box = byId('historyList');
+      if(!state.history || state.history.length === 0){
+        box.innerHTML = '<span class="muted">История пуста</span>';
+        return;
+      }
+      let html = '<table><thead><tr><th>#</th><th>Дата</th><th>Примечание</th><th class="right nowrap">Работ</th><th class="right nowrap">Часы</th><th></th></tr></thead><tbody>';
+      state.history.forEach((rec, idx) => {
+        // вычисляем сумму часов
+        const total = rec.log.reduce((s, x) => s + (Number(x.norm_hours) || 0), 0);
+        html += `<tr>` +
+          `<td>${idx+1}</td>` +
+          `<td>${escapeHtml(rec.date)}</td>` +
+          `<td>${escapeHtml(rec.orderInfo || '')}</td>` +
+          `<td class="right">${rec.log.length}</td>` +
+          `<td class="right">${toOneDecimal(total).toFixed(1)}</td>` +
+          `<td><span class="link" data-hist-open="${rec.id}">Открыть</span> | <span class="link" data-hist-delete="${rec.id}">Удалить</span></td>` +
+          `</tr>`;
+      });
+      html += '</tbody></table>';
+      box.innerHTML = html;
+    }
+
+    // Рендер выпадающего списка моделей
+    function renderModelFilter(){
+      const select = byId('modelFilter');
+      // Сохраняем выбранное значение
+      const prev = state.selectedModel;
+      // Получаем уникальные модели из каталога
+      const models = Array.from(new Set(state.catalog.map(r => String(r.model)))).sort((a,b) => a.localeCompare(b,'ru'));
+      // Если выбранная модель отсутствует в новом списке, сбросить выбор
+      if(prev && !models.includes(String(prev))){
+        state.selectedModel = '';
+      }
+      // Создаем разметку
+      let html = '<option value="">Все модели</option>';
+      for(const m of models){
+        const selected = (String(m) === String(prev)) ? ' selected' : '';
+        html += `<option value="${escapeAttr(m)}"${selected}>${escapeHtml(m)}</option>`;
+      }
+      select.innerHTML = html;
+    }
+
+    // Обработчики событий
+    document.addEventListener('click', (e)=>{
+      const add = e.target?.dataset?.add;
+      if(add){
+        // Найти строку каталога по уникальному id
+        const r = state.catalog.find(x => x.id === add);
+        if(r){
+          state.log.push({
+            id: uuid(),
+            model: r.model, code: r.code, title: r.title,
+            norm_hours: Number(r.norm_hours)||0,
+            workers: ['', '', '']
+          });
+          save(); renderLog();
+        }
+      }
+      const del = e.target?.dataset?.del;
+      if(del){
+        state.log = state.log.filter(x => x.id !== del);
+        save(); renderLog();
+      }
+    });
+
+    byId('search').addEventListener('input', (e)=>{
+      state.filter = e.target.value || '';
+      renderCatalog();
+    });
+
+    byId('orderInfo').addEventListener('input', (e)=>{
+      state.orderInfo = e.target.value || '';
+      save();
+    });
+    byId('dateField').addEventListener('change', (e)=>{
+      state.date = e.target.value || new Date().toISOString().slice(0,10);
+      save();
+    });
+
+    // Изменение исполнителей (делегирование ввода)
+    byId('logBody').addEventListener('input', (e)=>{
+      if(e.target.classList.contains('worker')){
+        const id = e.target.dataset.id;
+        const slot = Number(e.target.dataset.slot);
+        const row = state.log.find(x => x.id === id);
+        if(row){
+          row.workers[slot] = e.target.value;
+          save(); renderTotalsByWorker();
+        }
+      }
+    });
+
+    // Изменение исполнителей для <select>
+    byId('logBody').addEventListener('change', (e)=>{
+      if(e.target.classList.contains('worker-select')){
+        const id = e.target.dataset.id;
+        const slot = Number(e.target.dataset.slot);
+        const row = state.log.find(x => x.id === id);
+        if(row){
+          row.workers[slot] = e.target.value;
+          save(); renderTotalsByWorker();
+        }
+      }
+    });
+
+    // Очистить наряд
+    byId('btnClear').addEventListener('click', ()=>{
+      if(confirm('Очистить текущий наряд?')){
+        state.log = [];
+        save(); renderAll();
+      }
+    });
+
+    // Профили отключены: обработчик переключения не требуется
+
+    // Загрузка каталога (CSV или Excel)
+    byId('catalogFile').addEventListener('change', (e)=>{
+      const file = e.target.files?.[0];
+      if(!file) return;
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      if(ext === 'csv' || ext === 'txt'){
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: h => h.trim().toLowerCase(),
+          complete: (res)=>{
+            const rows = res.data.map(x => ({
+              id: uuid(),
+              model: normalizeModel(sanitize(x.model)),
+              code: sanitize(x.code),
+              title: sanitize(x.title),
+              norm_hours: Number((x.norm_hours||'').toString().replace(',', '.')) || 0
+            })).filter(x => x.model || x.code || x.title);
+            if(!rows.length){ alert('Не найдено валидных строк. Проверь колонки: model, code, title, norm_hours'); return; }
+            // Обновляем каталог
+            state.catalog = rows;
+            // Сбросить поисковый запрос и фильтр модели при загрузке нового каталога
+            state.filter = '';
+            state.selectedModel = '';
+            // Сохраняем глобальный каталог
+            try{
+              localStorage.setItem(GLOBAL_CATALOG_KEY, JSON.stringify(rows));
+            }catch(e){ console.warn('Не удалось сохранить глобальный каталог', e); }
+            save();
+            renderModelFilter();
+            renderCatalog();
+            alert('Каталог загружен: ' + rows.length + ' строк');
+          },
+          error: (err)=> alert('Ошибка чтения CSV: ' + err)
+        });
+      } else if(ext === 'xlsx' || ext === 'xls'){
+        const reader = new FileReader();
+        reader.onload = function(evt){
+          try{
+            const data = new Uint8Array(evt.target.result);
+            const workbook = XLSX.read(data, {type:'array'});
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            // Получаем массив строк; header:1 возвращает двумерный массив
+            const jsonArr = XLSX.utils.sheet_to_json(worksheet, {header:1});
+            if(!jsonArr || jsonArr.length < 2){
+              alert('Лист пуст или имеет некорректную структуру');
+              return;
+            }
+            // Заголовки
+            const header = jsonArr[0].map(h => (h||'').toString().trim().toLowerCase());
+            const idxNorm = header.findIndex(h => h.startsWith('норма'));
+            const idxChassis = header.findIndex(h => h.includes('шасси'));
+            const idxSubGroup = header.findIndex(h => h.startsWith('подгруппа'));
+            const idxGroup = header.findIndex(h => h.startsWith('группа'));
+            const idxOperation = header.findIndex(h => h.startsWith('опера'));
+            const idxLabor = header.findIndex(h => h.startsWith('труд'));
+            const rows = [];
+            for(let i=1; i<jsonArr.length; i++){
+              const row = jsonArr[i];
+              if(!row) continue;
+              const op = row[idxOperation];
+              if(!op) continue;
+              let labor = row[idxLabor];
+              labor = labor !== undefined && labor !== null ? String(labor).replace(',', '.') : '0';
+              const normHours = parseFloat(labor) || 0;
+              // derive model: use chassis if present, else extract digits from norm column
+              let model = '';
+              const chassis = row[idxChassis];
+              if(chassis !== undefined && chassis !== null && String(chassis).trim() !== ''){
+                model = String(chassis).trim();
+              } else {
+                const norm = row[idxNorm] || '';
+                const m = String(norm).match(/\d{4}/);
+                model = m ? m[0] : String(norm).trim();
+              }
+              // derive code: extract numeric prefix from sub-group; fallback to group
+              let code = '';
+              const sub = row[idxSubGroup];
+              if(sub !== undefined && sub !== null && String(sub).trim() !== ''){
+                const m = String(sub).match(/^(\d+)/);
+                code = m ? m[1] : String(sub).trim();
+              } else {
+                const grp = row[idxGroup];
+                if(grp !== undefined && grp !== null && String(grp).trim() !== ''){
+                  const m = String(grp).match(/^(\d+)/);
+                  code = m ? m[1] : String(grp).trim();
+                }
+              }
+              rows.push({
+                id: uuid(),
+                model: normalizeModel(sanitize(model)),
+                code: sanitize(code),
+                title: sanitize(String(op)),
+                norm_hours: normHours
+              });
+            }
+            if(!rows.length){
+              alert('Не найдено валидных строк. Проверьте, что колонки "Операция" и "Трудоемкость" заполнены');
+              return;
+            }
+            // Обновляем каталог
+            state.catalog = rows;
+            // Сбросить поисковый запрос и фильтр модели при загрузке нового каталога
+            state.filter = '';
+            state.selectedModel = '';
+            // Сохраняем глобальный каталог
+            try{
+              localStorage.setItem(GLOBAL_CATALOG_KEY, JSON.stringify(rows));
+            }catch(e){ console.warn('Не удалось сохранить глобальный каталог', e); }
+            save();
+            renderModelFilter();
+            renderCatalog();
+            alert('Каталог загружен: ' + rows.length + ' строк');
+          }catch(err){
+            console.error(err);
+            alert('Ошибка чтения Excel: ' + err.message);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        alert('Неподдерживаемый формат файла. Загрузите CSV, TXT или Excel (.xlsx, .xls)');
+      }
+    });
+
+    // Загрузка списка исполнителей (фамилии и инициалы)
+    byId('workersFile').addEventListener('change', (e)=>{
+      const file = e.target.files?.[0];
+      if(!file) return;
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      // вспомогательная функция для сохранения списка
+      const setWorkers = (list) => {
+        // отфильтровать пустые, удалить дубликаты и отсортировать
+        const names = Array.from(new Set(list.map(s => sanitize(s)).filter(s => s)) ).sort((a,b)=> a.localeCompare(b, 'ru'));
+        if(!names.length){
+          alert('Не удалось найти имена в выбранном файле');
+          return;
+        }
+        state.workersList = names;
+        // сохраняем глобальный список сотрудников
+        try{
+          localStorage.setItem(GLOBAL_WORKERS_KEY, JSON.stringify(names));
+        }catch(e){ console.warn('Не удалось сохранить глобальный список работников', e); }
+        save();
+        renderLog();
+        alert('Загружено исполнителей: ' + names.length);
+      };
+      if(ext === 'csv' || ext === 'txt'){
+        // читаем текст и разбиваем по строкам
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const text = evt.target.result || '';
+          // Разбить строки, удалить пустые
+          const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l);
+          setWorkers(lines);
+        };
+        reader.readAsText(file, 'utf-8');
+      } else if(ext === 'xlsx' || ext === 'xls'){
+        const reader = new FileReader();
+        reader.onload = function(evt){
+          try{
+            const data = new Uint8Array(evt.target.result);
+            const wb = XLSX.read(data, {type:'array'});
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, {header:1});
+            const names = [];
+            for(let i=0; i<rows.length; i++){
+              const row = rows[i];
+              if(row && row[0]){
+                names.push(String(row[0]).trim());
+              }
+            }
+            setWorkers(names);
+          }catch(err){
+            console.error(err);
+            alert('Ошибка чтения Excel: ' + err.message);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        alert('Неподдерживаемый формат списка исполнителей. Загрузите CSV, TXT или Excel (.xlsx, .xls)');
+      }
+    });
+
+    // Загрузка шаблона Excel
+    byId('templateFile').addEventListener('change', (e)=>{
+      const file = e.target.files?.[0];
+      if(!file) return;
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      if(ext !== 'xlsx' && ext !== 'xls'){
+        alert('Поддерживаются только файлы Excel (.xlsx, .xls)');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(evt){
+        const buffer = evt.target.result;
+        state.templateData = buffer;
+        // Сохраняем в localStorage в base64-формате
+        try{
+          const bytes = new Uint8Array(buffer);
+          let binary = '';
+          for(let i=0; i<bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+          const b64 = btoa(binary);
+          localStorage.setItem(GLOBAL_TEMPLATE_KEY, b64);
+        }catch(err){ console.warn('Не удалось сохранить шаблон', err); }
+        alert('Шаблон загружен');
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    // Кнопка: пример списка исполнителей
+    byId('btnSampleWorkers').addEventListener('click', () => {
+      const sample = [
+        'Иванов И.И.',
+        'Петров П.П.',
+        'Сидоров С.С.',
+        'Фёдоров Ф.Ф.'
+      ].join('\n');
+      downloadText('workers_sample.csv', sample);
+    });
+
+    // Обработчик изменения фильтра модели
+    byId('modelFilter').addEventListener('change', (e)=>{
+      state.selectedModel = e.target.value || '';
+      save();
+      renderCatalog();
+    });
+
+    // Пример CSV
+    byId('btnSample').addEventListener('click', ()=>{
+      const sample = [
+        'model,code,title,norm_hours',
+        '43118,ENG-101,Замена масла двигателя,2.5',
+        '43118,BRK-210,Регулировка тормозов,1.2',
+        '6520,CLT-330,Замена сцепления,8.0',
+        '6520,SUS-510,Замена амортизаторов (ось),3.5'
+      ].join('\n');
+      downloadText('catalog_sample.csv', sample);
+    });
+
+    // Экспорт наряда (CSV) отключен
+
+    // Экспорт наряда в Excel
+    byId('btnExportExcelLog').addEventListener('click', ()=>{
+      // Если загружен шаблон, используем его
+      if(state.templateData){
+        exportWithTemplate();
+        return;
+      }
+      // Если шаблон не выбран, экспортируем в стандартном формате
+      const wb = XLSX.utils.book_new();
+      const ws = {};
+      // Информационная строка: Дата и примечание во второй строке
+      const info = `Дата приема: ${state.date || ''}  Примечание: ${state.orderInfo || ''}`;
+      // Оставляем первую строку пустой для соответствия бланку
+      ws['A2'] = { t:'s', v: info, s:{ alignment: { wrapText: true } } };
+      // Строка 3 оставляем пустой для отступа
+      // Записываем данные начиная со строки 4 (1‑индекс)
+      let rowIndex = 4;
+      let counter = 1;
+      // Подготовим массив объединений ячеек
+      const merges = [];
+      // Функция для создания стилей с границами и возможностью переноса
+      const makeStyle = (wrap=false) => ({
+        border: {
+          top: {style:'thin'},
+          bottom:{style:'thin'},
+          left:{style:'thin'},
+          right:{style:'thin'}
+        },
+        alignment: { vertical: 'top', wrapText: wrap }
+      });
+      for(const it of state.log){
+        const wsList = it.workers.filter(Boolean);
+        const normTotal = parseFloat((Number(it.norm_hours)||0).toFixed(1));
+        const countWorkers = wsList.length > 0 ? wsList.length : 1;
+        // Норма на одного с учётом округления вверх до 0.1
+        const perVal = calcPerPerson(normTotal, countWorkers);
+        const rStart = rowIndex - 1; // нулевая индексация
+        const rCount = wsList.length > 0 ? wsList.length : 1;
+        const rEnd = rStart + rCount - 1;
+        if(rCount > 1){
+          // Объединяем только ячейки с работой на несколько строк
+          merges.push({ s: { r: rStart, c: 1 }, e: { r: rEnd, c: 1 } });
+        }
+        if(wsList.length === 0){
+          const r = rowIndex - 1;
+          // Номер
+          ws[XLSX.utils.encode_cell({ r, c: 0 })] = { t:'n', v: counter, s: makeStyle(false) };
+          // Работа
+          ws[XLSX.utils.encode_cell({ r, c: 1 })] = { t:'s', v: it.title, s: makeStyle(true) };
+          // Норма (если исполнителей нет, делить не нужно)
+          ws[XLSX.utils.encode_cell({ r, c: 2 })] = { t:'n', v: perVal, s: makeStyle(false) };
+          // Дата
+          ws[XLSX.utils.encode_cell({ r, c: 3 })] = { t:'s', v: state.date || '', s: makeStyle(false) };
+          // Исполнители
+          ws[XLSX.utils.encode_cell({ r, c: 4 })] = { t:'s', v: '', s: makeStyle(true) };
+          rowIndex++;
+          counter++;
+        } else {
+          wsList.forEach((w, idx) => {
+            const r = rowIndex - 1;
+            if(idx === 0){
+              // первая строка: номер, работа, норма, дата, исполнитель
+              ws[XLSX.utils.encode_cell({ r, c: 0 })] = { t:'n', v: counter, s: makeStyle(false) };
+              ws[XLSX.utils.encode_cell({ r, c: 1 })] = { t:'s', v: it.title, s: makeStyle(true) };
+              ws[XLSX.utils.encode_cell({ r, c: 2 })] = { t:'n', v: perVal, s: makeStyle(false) };
+              ws[XLSX.utils.encode_cell({ r, c: 3 })] = { t:'s', v: state.date || '', s: makeStyle(false) };
+              ws[XLSX.utils.encode_cell({ r, c: 4 })] = { t:'s', v: w, s: makeStyle(true) };
+            } else {
+              // последующие строки: только норма, дата и исполнитель
+              ws[XLSX.utils.encode_cell({ r, c: 2 })] = { t:'n', v: perVal, s: makeStyle(false) };
+              ws[XLSX.utils.encode_cell({ r, c: 3 })] = { t:'s', v: state.date || '', s: makeStyle(false) };
+              ws[XLSX.utils.encode_cell({ r, c: 4 })] = { t:'s', v: w, s: makeStyle(true) };
+            }
+            rowIndex++;
+          });
+          counter++;
+        }
+      }
+      // Определяем диапазон
+      const endRow = rowIndex - 1;
+      ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: endRow - 1, c: 4 } });
+      // Настройка ширины столбцов для печати на одну страницу
+      ws['!cols'] = [
+        { wch: 5 },   // №
+        { wch: 50 },  // Работа — достаточно широкий столбец для печати
+        { wch: 10 },  // Норма
+        { wch: 12 },  // Дата
+        { wch: 30 }   // Исполнители
+      ];
+      // Заморозить первые три строки (пустая, дата/примечание и пустая) для печати
+      ws['!freeze'] = { xSplit: 0, ySplit: 3, topLeftCell:'A4' };
+      // Применяем объединения ячеек
+      if(merges.length){
+        ws['!merges'] = merges;
+      }
+      XLSX.utils.book_append_sheet(wb, ws, 'Наряд');
+      // Формируем данные для сводной таблицы по исполнителям
+        const totals = {};
+      for(const it of state.log){
+        const wsList = it.workers.filter(Boolean);
+        const n = (wsList.length) || 1;
+        // Используем ту же функцию, что и для строк, чтобы избежать нулей
+        const per = calcPerPerson(Number(it.norm_hours)||0, n);
+        if(wsList.length === 0){
+          totals['(без имени)'] = toOneDecimal((totals['(без имени)']||0) + per);
+        } else {
+          for(const w of wsList){
+            totals[w] = toOneDecimal((totals[w]||0) + per);
+          }
+        }
+      }
+      const summaryData = [];
+      summaryData.push(['Исполнитель','Сумма, ч']);
+      Object.keys(totals).sort((a,b) => a.localeCompare(b, 'ru')).forEach(name => {
+        summaryData.push([name, totals[name].toFixed(1)]);
+      });
+      const ws2 = XLSX.utils.aoa_to_sheet(summaryData);
+      ws2['!cols'] = [ {wch: 25}, {wch: 12} ];
+      ws2['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell:'A2' };
+      ws2['!autofilter'] = { ref: 'A1:B1' };
+      XLSX.utils.book_append_sheet(wb, ws2, 'Исполнители');
+      // Пишем файл
+      const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      const blob = new Blob([wbout], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      downloadBlob(`narjad_${state.date}.xlsx`, blob);
+    });
+
+    /**
+     * Экспортирует наряд, подставляя данные в загруженный шаблон Excel
+     */
+    function exportWithTemplate(){
+      try{
+        if(!state.templateData){
+          alert('Шаблон не загружен');
+          return;
+        }
+        // Читаем шаблон
+        const wb = XLSX.read(state.templateData, {type:'array'});
+        const firstSheetName = wb.SheetNames[0];
+        const ws = wb.Sheets[firstSheetName];
+        // Записываем общую строку с датой и примечанием во вторую строку, колонку A
+        const infoText = `Дата приема: ${state.date || ''}  Примечание: ${state.orderInfo || ''}`;
+        // Установим значение ячейки A2
+        ws['A2'] = ws['A2'] || {};
+        ws['A2'].t = 's';
+        ws['A2'].v = infoText;
+        // Включаем перенос строк и границу для общей строки
+        ws['A2'].s = {
+          border: {
+            top: {style:'thin'},
+            bottom: {style:'thin'},
+            left: {style:'thin'},
+            right: {style:'thin'}
+          },
+          alignment: { vertical: 'top', wrapText: true }
+        };
+        // Настраиваем ширину столбцов, чтобы текст помещался и переносился
+        ws['!cols'] = [
+          { wch: 5 },   // №
+          { wch: 50 },  // Работа — достаточно широкий столбец
+          { wch: 10 },  // Норма
+          { wch: 12 },  // Дата
+          { wch: 30 }   // Исполнитель
+        ];
+        // Замораживаем строки с заголовком и общей информацией (до третьей строки)
+        ws['!freeze'] = { xSplit: 0, ySplit: 3, topLeftCell: 'A4' };
+        // Начальная строка для данных (строка 4, без заголовка)
+        const startRow = 4;
+        // Очистим первую три строки (0-индекс: 0,1,2) и существующие данные, начиная со строки 4
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        // Удаляем ячейки в строках 1-3 (1-based) по 5 колонок
+        for(let r = 0; r < startRow - 1; r++){
+          for(let c = 0; c < 5; c++){
+            const cellAddress = XLSX.utils.encode_cell({ r, c });
+            if(ws[cellAddress]) delete ws[cellAddress];
+          }
+        }
+        // Удаляем существующие строки данных, начиная со startRow
+        for(let r = startRow; r <= range.e.r + 1; r++){
+          for(let c = 0; c < 5; c++){
+            const cellAddress = XLSX.utils.encode_cell({ r: r - 1, c });
+            if(ws[cellAddress]) delete ws[cellAddress];
+          }
+        }
+        // Записываем данные. Каждый работник занимает отдельную строку.
+        let rowIndex = startRow;
+        let counter = 1;
+        const merges = [];
+        // Функция для создания стиля ячейки с границей и возможностью переноса
+        const makeStyleTpl = (wrap=false) => ({
+          border: {
+            top: {style:'thin'},
+            bottom: {style:'thin'},
+            left: {style:'thin'},
+            right: {style:'thin'}
+          },
+          alignment: { vertical: 'top', wrapText: wrap }
+        });
+        for(const it of state.log){
+          // Получаем список исполнителей без пустых значений
+          const wsList = it.workers.filter(w => w && w.trim());
+          // Общая норма работы
+          const normTotal = parseFloat((Number(it.norm_hours) || 0).toFixed(1));
+          // Число исполнителей (минимум 1)
+          const workerCount = wsList.length > 0 ? wsList.length : 1;
+          // Норма на одного человека, округлённая вверх до 0.1 при необходимости
+          const perVal = calcPerPerson(normTotal, workerCount);
+          const rStart = rowIndex - 1;
+          const rCount = wsList.length > 0 ? wsList.length : 1;
+          const rEnd = rStart + rCount - 1;
+          // Если несколько исполнителей, объединяем только ячейки с работой
+          if(rCount > 1){
+            merges.push({ s: { r: rStart, c: 1 }, e: { r: rEnd, c: 1 } });
+          }
+          if(wsList.length === 0){
+            // Запись для работы без исполнителей
+            const r = rowIndex - 1;
+            // Номер
+            ws[XLSX.utils.encode_cell({ r, c: 0 })] = { t: 'n', v: counter, s: makeStyleTpl(false) };
+            // Работа
+            ws[XLSX.utils.encode_cell({ r, c: 1 })] = { t: 's', v: it.title, s: makeStyleTpl(true) };
+            // Норма на человека (равна общей норме)
+            ws[XLSX.utils.encode_cell({ r, c: 2 })] = { t: 'n', v: perVal, s: makeStyleTpl(false) };
+            // Дата
+            ws[XLSX.utils.encode_cell({ r, c: 3 })] = { t: 's', v: state.date || '', s: makeStyleTpl(false) };
+            // Исполнитель (пусто)
+            ws[XLSX.utils.encode_cell({ r, c: 4 })] = { t: 's', v: '', s: makeStyleTpl(true) };
+            rowIndex++;
+            counter++;
+          } else {
+            wsList.forEach((w, idx) => {
+              const r = rowIndex - 1;
+              if(idx === 0){
+                // Первая строка: номер, работа, норма на человека, дата, исполнитель
+                ws[XLSX.utils.encode_cell({ r, c: 0 })] = { t: 'n', v: counter, s: makeStyleTpl(false) };
+                ws[XLSX.utils.encode_cell({ r, c: 1 })] = { t: 's', v: it.title, s: makeStyleTpl(true) };
+                ws[XLSX.utils.encode_cell({ r, c: 2 })] = { t: 'n', v: perVal, s: makeStyleTpl(false) };
+                ws[XLSX.utils.encode_cell({ r, c: 3 })] = { t: 's', v: state.date || '', s: makeStyleTpl(false) };
+                ws[XLSX.utils.encode_cell({ r, c: 4 })] = { t: 's', v: w, s: makeStyleTpl(true) };
+              } else {
+                // Для остальных исполнителей: норма на человека, дата и исполнитель
+                ws[XLSX.utils.encode_cell({ r, c: 2 })] = { t: 'n', v: perVal, s: makeStyleTpl(false) };
+                ws[XLSX.utils.encode_cell({ r, c: 3 })] = { t: 's', v: state.date || '', s: makeStyleTpl(false) };
+                ws[XLSX.utils.encode_cell({ r, c: 4 })] = { t: 's', v: w, s: makeStyleTpl(true) };
+              }
+              rowIndex++;
+            });
+            counter++;
+          }
+        }
+        // Обновляем диапазон, начиная со строки 2, чтобы включить общую информацию и все строки данных
+        const endRow = rowIndex - 1;
+        const newRange = { s: { r: 1, c: 0 }, e: { r: endRow - 1, c: 4 } };
+        ws['!ref'] = XLSX.utils.encode_range(newRange);
+        // Применяем объединения ячеек, если есть
+        if(merges.length){
+          ws['!merges'] = merges;
+        }
+        // Добавляем лист с исполнителями
+        // Удаляем старый лист с этим названием если он есть
+        const sumSheetName = 'Исполнители';
+        let idx = wb.SheetNames.indexOf(sumSheetName);
+        if(idx !== -1){
+          delete wb.Sheets[sumSheetName];
+          wb.SheetNames.splice(idx,1);
+        }
+        // Подготовка данных
+        const totals = {};
+        for(const it of state.log){
+          const wsList = it.workers.filter(Boolean);
+          const n = (wsList.length) || 1;
+          // Используем ту же функцию, что и для строк, чтобы избегать нулевых значений
+          const per = calcPerPerson(Number(it.norm_hours)||0, n);
+          if(wsList.length === 0){
+            totals['(без имени)'] = toOneDecimal((totals['(без имени)']||0) + per);
+          } else {
+            for(const w of wsList){
+              totals[w] = toOneDecimal((totals[w]||0) + per);
+            }
+          }
+        }
+        const summaryData = [];
+        summaryData.push(['Исполнитель','Сумма, ч']);
+        Object.keys(totals).sort((a,b) => a.localeCompare(b, 'ru')).forEach(name => {
+          summaryData.push([name, totals[name].toFixed(1)]);
+        });
+        const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+        summarySheet['!cols'] = [ {wch: 25}, {wch: 12} ];
+        summarySheet['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell:'A2' };
+        summarySheet['!autofilter'] = { ref: 'A1:B1' };
+        XLSX.utils.book_append_sheet(wb, summarySheet, sumSheetName);
+        // Пишем файл
+        const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+        const blob = new Blob([wbout], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        downloadBlob(`narjad_${state.date}.xlsx`, blob);
+      }catch(err){
+        console.error(err);
+        alert('Ошибка экспорта с использованием шаблона: ' + err.message);
+      }
+    }
+
+    // Сохранить текущий наряд в историю
+    byId('btnSaveLog').addEventListener('click', ()=>{
+      if(!state.log || state.log.length === 0){
+        alert('Нет работ для сохранения');
+        return;
+      }
+      const rec = {
+        id: uuid(),
+        date: state.date,
+        orderInfo: state.orderInfo,
+        log: JSON.parse(JSON.stringify(state.log))
+      };
+      if(!Array.isArray(state.history)) state.history = [];
+      state.history.push(rec);
+      // Очистить текущий наряд
+      state.log = [];
+      state.orderInfo = '';
+      // Обновляем дату по умолчанию на сегодня
+      state.date = new Date().toISOString().slice(0,10);
+      save();
+      renderAll();
+      alert('Наряд сохранён в историю');
+    });
+
+    // Обработчик кликов по истории (открыть/удалить)
+    byId('historyList').addEventListener('click', (e)=>{
+      const openId = e.target?.dataset?.histOpen;
+      if(openId){
+        const rec = state.history.find(x => x.id === openId);
+        if(rec){
+          // Загружаем наряд в текущий список
+          state.log = JSON.parse(JSON.stringify(rec.log));
+          state.orderInfo = rec.orderInfo || '';
+          state.date = rec.date || new Date().toISOString().slice(0,10);
+          save();
+          renderAll();
+          alert('Наряд загружен');
+        }
+        return;
+      }
+      const delId = e.target?.dataset?.histDelete;
+      if(delId){
+        if(confirm('Удалить сохранённый наряд?')){
+          state.history = state.history.filter(x => x.id !== delId);
+          save();
+          renderHistory();
+        }
+        return;
+      }
+    });
+
+    // Сохранить/Загрузить всё состояние (JSON)
+    byId('btnExportState').addEventListener('click', ()=>{
+      // Сохраняем весь глобальный state в JSON без привязки к профилю
+      downloadText('kamaz_time_state.json', JSON.stringify(state, null, 2));
+    });
+    byId('btnImportState').addEventListener('click', ()=>{
+      byId('stateFile').click();
+    });
+    byId('stateFile').addEventListener('change', (e)=>{
+      const f = e.target.files?.[0]; if(!f) return;
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{
+          const obj = JSON.parse(reader.result);
+          if(!obj || !obj.catalog || !obj.log) throw new Error('Не то состояние');
+          state = obj;
+          save(); renderAll();
+          alert('Состояние загружено');
+        }catch(err){
+          alert('Ошибка загрузки состояния: ' + err.message);
+        }
+      };
+      reader.readAsText(f, 'utf-8');
+    });
+
+    // Вспомогательные функции
+    function escapeHtml(s){
+      return (s??'').toString().replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m]));
+    }
+    function escapeAttr(s){ return (s??'').toString().replace(/"/g,'&quot;'); }
+    function csvEsc(s){
+      // Экранируем поле, если содержит кавычку, запятую, точку с запятой или перевод строки
+      s = (s??'').toString();
+      if(/[",;\n]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
+      return s;
+    }
+    function downloadText(filename, text){
+      // Добавляем BOM для файлов CSV, чтобы Excel корректно распознавал кодировку (UTF‑8)
+      const isCsv = filename.toLowerCase().endsWith('.csv');
+      const bom = '\uFEFF';
+      const data = isCsv ? bom + text : text;
+      const blob = new Blob([data], {type:'text/plain;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+    }
+
+    /**
+     * Скачивает двоичный файл (например, XLSX)
+     * @param {string} filename
+     * @param {Blob} blob
+     */
+    function downloadBlob(filename, blob){
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+    }
+
+    // Инициализация
+    (function init(){
+      // Инициализация без профилей: подгружаем глобальные данные
+      loadGlobalData();
+      // Загружаем сохранённое глобальное состояние (если есть)
+      load();
+    })();
+  </script>
+</body>
+</html>
