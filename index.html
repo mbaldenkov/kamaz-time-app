@@ -55,6 +55,34 @@ main{display:grid;grid-template-columns:minmax(300px, 45%) 1fr;gap:14px;padding:
     /* Минимальная ширина для выпадающего списка исполнителей */
     .worker-select{min-width:120px; flex:1 1 auto;}
 
+    /* На мобильных убираем фиксированную позицию каталога, чтобы правая колонка была видна */
+    @media (max-width: 960px) {
+      .sticky {
+        position: static;
+        top: auto;
+      }
+    }
+
+    /* Убираем внутренний скролл логов на мобильных, чтобы список работ и исполнителей был полностью виден */
+    @media (max-width: 960px) {
+      .log-wrapper {
+        overflow: visible !important;
+        max-height: none;
+      }
+
+      /* На мобильных переставляем порядок секций: сначала наряд, потом каталог */
+      main {
+        display: flex;
+        flex-direction: column;
+      }
+      main > section.card.sticky {
+        order: 2;
+      }
+      main > section.card:not(.sticky) {
+        order: 1;
+      }
+    }
+
     /* Позволяем пользователю изменять ширину панели каталога на ПК */
     @media (min-width: 961px) {
       main > section.card.sticky {
@@ -65,10 +93,17 @@ main{display:grid;grid-template-columns:minmax(300px, 45%) 1fr;gap:14px;padding:
       }
     }
 
-    /* Каталог: убираем внутреннюю прокрутку. Контейнер растягивается по содержимому, страница прокручивается целиком */
+    /* Каталог: на десктопе внутренней прокрутки нет (каталог тянется по высоте).
+       На мобильных ограничиваем высоту каталога, чтобы справа была видна таблица наряда. */
     .catalog-wrapper {
       overflow-y: visible;
       max-height: none;
+    }
+    @media (max-width: 960px) {
+      .catalog-wrapper {
+        max-height: 40vh;
+        overflow-y: auto;
+      }
     }
 
     /* Делаем перенос строк в колонке "Работа" для длинных описаний */
@@ -163,6 +198,7 @@ main{display:grid;grid-template-columns:minmax(300px, 45%) 1fr;gap:14px;padding:
         <div class="spacer"></div>
         <button class="btn accent" id="btnSaveLog">Сохранить наряд</button>
         <button class="btn danger" id="btnClear">Очистить наряд</button>
+        <button class="btn danger" id="btnResetAll">Очистить всё</button>
       </div>
 
       <div class="grid2">
@@ -175,7 +211,7 @@ main{display:grid;grid-template-columns:minmax(300px, 45%) 1fr;gap:14px;padding:
         <span class="badge">Деление времени поровну, округление до 0.1</span>
       </div>
 
-      <div style="overflow:auto;border:1px solid var(--border);border-radius:10px">
+      <div class="log-wrapper" style="overflow:auto;border:1px solid var(--border);border-radius:10px">
         <table id="logTable">
           <thead>
             <tr>
@@ -374,7 +410,17 @@ main{display:grid;grid-template-columns:minmax(300px, 45%) 1fr;gap:14px;padding:
         const hay = `${r.model} ${r.code} ${r.title}`.toLowerCase();
         return hay.includes(q);
       }).slice(0,500); // защита от огромных файлов
-      // Если нет строк, показываем уведомление
+
+      // Если поисковый запрос пуст и модель не выбрана, ничего не показываем,
+      // чтобы не перегружать страницу длинным списком. Отобразим подсказку.
+      if(!state.filter.trim() && !state.selectedModel){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="5" class="muted" style="text-align:center;padding:20px">Введите поисковый запрос</td>`;
+        tbody.appendChild(tr);
+        return;
+      }
+
+      // Если после фильтрации нет строк, показываем уведомление
       if(rows.length === 0){
         const tr = document.createElement('tr');
         tr.innerHTML = `<td colspan="5" class="muted" style="text-align:center;padding:20px">Нет работ</td>`;
@@ -592,6 +638,19 @@ main{display:grid;grid-template-columns:minmax(300px, 45%) 1fr;gap:14px;padding:
       if(confirm('Очистить текущий наряд?')){
         state.log = [];
         save(); renderAll();
+      }
+    });
+
+    // Очистить всё (лог, история, примечание, дата)
+    byId('btnResetAll').addEventListener('click', ()=>{
+      if(confirm('Очистить все данные (текущий наряд и историю)?')){
+        state.log = [];
+        state.history = [];
+        state.orderInfo = '';
+        state.date = new Date().toISOString().slice(0,10);
+        save();
+        renderAll();
+        alert('Все данные очищены');
       }
     });
 
